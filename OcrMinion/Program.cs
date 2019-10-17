@@ -16,6 +16,7 @@ namespace OcrMinion
     {
         private static async Task<int> Main(string[] args)
         {
+            // todo: graceful shutdown https://stackoverflow.com/questions/40742192/how-to-do-gracefully-shutdown-on-dotnet-with-docker
             #region configuration
 
             var builder = new HostBuilder()
@@ -25,22 +26,23 @@ namespace OcrMinion
                         .AddJsonFile("appsettings.json", optional: true)
                         .AddEnvironmentVariables();
                 })
+                .ConfigureLogging((hostContext, logging) =>
+                {
+                    logging.AddConfiguration(hostContext.Configuration.GetSection("Logging"));
+                    logging.AddConsole();
+                })
                 .ConfigureServices((hostContext, services) =>
                 {
                     services.Configure<HlidacOption>(config =>
                     {
                         config.ApiKey = hostContext.Configuration.GetValue<string>("OCRM_APIKEY");
-                        config.Server = hostContext.Configuration.GetValue<string>("OCRM_SERVER");
+                        config.Server = hostContext.Configuration.GetValue<string>("OCRM_SERVER"); //todo: default value should be guid
                         config.Demo = hostContext.Configuration.GetValue<bool>("OCRM_DEMO", false);
                     });
                     services.AddHttpClient<IHlidacRest, HlidacRest>(config =>
                     {
                         config.BaseAddress = new Uri(hostContext.Configuration.GetValue<string>("base_address"));
                         config.DefaultRequestHeaders.Add("User-Agent", hostContext.Configuration.GetValue<string>("user_agent"));
-                    });
-                    services.AddLogging(config =>
-                    {
-                        config.AddConsole();
                     });
                 }).UseConsoleLifetime();
 
@@ -51,14 +53,14 @@ namespace OcrMinion
             using (var serviceScope = host.Services.CreateScope())
             {
                 var services = serviceScope.ServiceProvider;
+                var logger = services.GetRequiredService<ILogger<Program>>();
                 int taskCounter = 0;
                 try
                 {
                     var hlidacRest = services.GetRequiredService<IHlidacRest>();
-                    var logger = services.GetRequiredService<ILogger<Program>>();
+                    var taskQueue = new Queue<Task<HlidacTask>>(3);
 
                     logger.LogInformation("OCR minion initialized.");
-                    Queue<Task<HlidacTask>> taskQueue = new Queue<Task<HlidacTask>>(3);
                     taskQueue.Enqueue(GetNewImage(hlidacRest, logger));
 
                     while (true)
@@ -66,7 +68,7 @@ namespace OcrMinion
                         // todo: try catch, polly???
                         HlidacTask currentTask = await taskQueue.Dequeue();
 
-                        logger.LogInformation($"Starting to process {++taskCounter}. task.");
+                        logger.LogInformation($"Starting OCR process of {++taskCounter}. task.");
                         // run OCR and wait for its end
                         // to run OCR asynchronously I am using this library: https://github.com/jamesmanning/RunProcessAsTask
                         DateTime taskStart = DateTime.Now;
@@ -74,12 +76,12 @@ namespace OcrMinion
                         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                         {
                             // this part is here only for debugging purposes
-                            string tesseractArgs = $"{currentTask.TaskId} {currentTask.TaskId}";
+                            string tesseractArgs = $"{currentTask.InternalFileName} {currentTask.InternalFileName}";
                             tesseractTask = ProcessEx.RunAsync("tesseract.exe", tesseractArgs);
                         }
                         else
                         {
-                            string tesseractArgs = $"tesseract {currentTask.TaskId} {currentTask.TaskId} -l CES --psm 1 --dpi 300".Replace("\"", "\\\"");
+                            string tesseractArgs = $"tesseract {currentTask.InternalFileName} {currentTask.InternalFileName} -l CES --psm 1 --dpi 300".Replace("\"", "\\\"");
                             tesseractTask = ProcessEx.RunAsync("/bin/sh", tesseractArgs);
                         }
 
@@ -87,48 +89,32 @@ namespace OcrMinion
                         taskQueue.Enqueue(GetNewImage(hlidacRest, logger));
 
                         var tesseractResult = await tesseractTask;
+
                         DateTime taskEnd = DateTime.Now;
                         if (tesseractResult.ExitCode == 0)
                         {
-                            string text = await File.ReadAllTextAsync($"{currentTask.TaskId}.txt", Encoding.UTF8);
+                            logger.LogInformation($"OCR process of {taskCounter}. task successfully finished.");
+                            string text = await File.ReadAllTextAsync($"{currentTask.InternalFileName}.txt", Encoding.UTF8);
 
-                            HlidacDocument document = new HlidacDocument()
-                            {
-                                Id = currentTask.TaskId,
-                                Started = taskStart,
-                                Ends = taskEnd,
-                                IsValid = 1,
-                                Error = null,
-                                Documents = new DocumentInfo[]
-                                {
-                                    new DocumentInfo()
-                                    {
-                                        Filename = currentTask.OrigFileName,
-                                        RemainsInSec = tesseractResult.RunTime.TotalSeconds.ToString(),
-                                        Text = text
-                                    }
-                                }
-                            };
+                            HlidacDocument document = new HlidacDocument(currentTask.TaskId, 
+                                taskStart, taskEnd, currentTask.OrigFileName, text, 
+                                tesseractResult.RunTime.TotalSeconds.ToString());
 
                             await hlidacRest.SendResultAsync(currentTask.TaskId, document);
 
-                            File.Delete(currentTask.TaskId);
+                            File.Delete(currentTask.InternalFileName);
+                            File.Delete(currentTask.InternalFileName +".txt");
                         }
                         else
                         {
-                            logger.LogWarning("tesseract error");
-                            foreach(string stdout in tesseractResult.StandardError)
-                            {
-                                Console.WriteLine(stdout);
-                            }
+                            logger.LogWarning($"OCR process of {taskCounter}. task unsuccessfully finished.");
+                            logger.LogWarning(string.Join('\n', tesseractResult.StandardError));
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    var logger = services.GetRequiredService<ILogger<Program>>();
-
-                    logger.LogError(ex, "An error occurred.");
+                    logger.LogError(ex, "Guess what? Something went wrong and we don't know what.");
                 }
             }
 
@@ -142,11 +128,12 @@ namespace OcrMinion
 
             if (task != null && !string.IsNullOrWhiteSpace(task.TaskId))
             {
-                var file = await hlidacRest.GetFileToAnalyzeAsync(task.TaskId);
-                using (var fileStream = new FileStream(task.TaskId, FileMode.Create, FileAccess.Write))
+                var downloadStream = await hlidacRest.GetFileToAnalyzeAsync(task.TaskId);
+                using (var fileStream = new FileStream(task.InternalFileName, FileMode.Create, FileAccess.Write))
                 {
-                    await file.CopyToAsync(fileStream);
+                    await downloadStream.CopyToAsync(fileStream);
                 }
+                logger.LogInformation($"Image for task[{task.TaskId}] successfully downloaded.");
             }
             else
             {

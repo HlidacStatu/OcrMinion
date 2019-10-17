@@ -1,4 +1,6 @@
-﻿namespace OcrMinion
+﻿using System;
+
+namespace OcrMinion
 {
     internal class HlidacTask
     {
@@ -8,5 +10,6 @@
         public int Intensity { get; set; }
         public string OrigFileName { get; set; }
         public string LocalTempFile { get; set; }
+        public string InternalFileName { get; } = Guid.NewGuid().ToString();
     }
 }
