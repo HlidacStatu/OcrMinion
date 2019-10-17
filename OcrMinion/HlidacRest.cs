@@ -1,25 +1,26 @@
-﻿using System;
+﻿using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
+using System;
 using System.Net.Http;
 using System.Net.Mime;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Options;
-using Newtonsoft.Json;
 
 namespace OcrMinion
 {
-    class HlidacRest : IHlidacRest
+    internal class HlidacRest : IHlidacRest
     {
-
         private readonly HttpClient _httpClient;
         private readonly string _apiKey;
         private readonly string _server;
+        private readonly bool _isDemo;
 
         public HlidacRest(HttpClient client, IOptionsMonitor<HlidacOption> options)
         {
             _httpClient = client;
             _apiKey = options.CurrentValue.ApiKey;
             _server = options.CurrentValue.Server;
+            _isDemo = options.CurrentValue.Demo;
         }
 
         /*
@@ -30,11 +31,13 @@ namespace OcrMinion
             anebo to nevrati nic.Pak zadny task ve fronte neni.
             server= DockerXYZ je jmeno serveru, ktery o task zada (rekneme jmeno Docker stroje nebo neco takoveho)
         */
+
         public async Task<HlidacTask> GetTaskAsync()
         {
+            string demoParam = (_isDemo) ? "&demo=1" : "";
             var request = new HttpRequestMessage(HttpMethod.Get,
-                    $"/task.ashx?apikey={_apiKey}&server={_server}&minPriority=0&maxPriority=99&type=image&demo=1");
-                        
+                    $"/task.ashx?apikey={_apiKey}&server={_server}&minPriority=0&maxPriority=99&type=image{demoParam}");
+
             var response = await _httpClient.SendAsync(request);
 
             if (response.IsSuccessStatusCode)
@@ -47,11 +50,13 @@ namespace OcrMinion
                 throw new HttpRequestException($"GetTaskAsync failed with {response.StatusCode}");
             }
         }
+
         /* throw new HttpRequestException($"GetFileToAnalyzeAsync failed with {response.StatusCode}");
             2) Pokud je nejaky task, je nutne ziskat soubor k analyze
             GET https://ocr.hlidacstatu.cz/task.ashx?taskid=00000000-0000-0000-0000-000000000000
             to vrati binarku souboru(v tomto pripade vzdy JPEG). U nuloveho GUID vzdy stejny testovaci soubor.
         */
+
         public async Task<System.IO.Stream> GetFileToAnalyzeAsync(string taskId)
         {
             var request = new HttpRequestMessage(HttpMethod.Get,
@@ -68,14 +73,13 @@ namespace OcrMinion
                 throw new HttpRequestException($"GetFileToAnalyzeAsync failed with {response.StatusCode}");
             }
         }
-        
 
         /*
             POST https://ocr.hlidacstatu.cz/donetask.ashx?taskid=00000000-0000-0000-0000-000000000000&method=done
-            {  
+            {
                "Id”:"00000000-0000-0000-0000-000000000000",
                "Documents":[
-                  {  
+                  {
                      "ContentType":"image/jpeg",
                      "Filename":"_!_img3.jpg",
                      "Text":" \n\nKB\n\n \n\nČíslo účtu | 107-5493970277 /0100|\n\n \n\nKomerční banka, a.s., ",
@@ -94,7 +98,7 @@ namespace OcrMinion
                "Error":null
             }
 
-            k JSON: 
+            k JSON:
             - Documents.Text - ziskany text z Tesseract
             - Documents.Confidence - nekdy vraci Tesseract
             - Documents.UsedOCR - vzdyt true
@@ -104,6 +108,7 @@ namespace OcrMinion
             - IsValid: pokud vse ok, pak 1. Jinak 0
             - Error: pokud nastala chyba, pak sem chybova hlaska
         */
+
         public async Task SendResultAsync(string taskId, HlidacDocument document)
         {
             document.Server = _server;
@@ -132,7 +137,6 @@ namespace OcrMinion
             {
                 throw new HttpRequestException($"GetFileToAnalyzeAsync failed with {response.StatusCode}");
             }
-
         }
     }
 }

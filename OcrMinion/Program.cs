@@ -1,19 +1,23 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Configuration;
 using RunProcessAsTask;
 using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Threading.Tasks;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace OcrMinion
 {
-    class Program
+    internal class Program
     {
-        static async Task<int> Main(string[] args)
+        private static async Task<int> Main(string[] args)
         {
+            #region configuration
+
             var builder = new HostBuilder()
                 .ConfigureAppConfiguration(configure =>
                 {
@@ -27,50 +31,60 @@ namespace OcrMinion
                     {
                         config.ApiKey = hostContext.Configuration.GetValue<string>("OCRM_APIKEY");
                         config.Server = hostContext.Configuration.GetValue<string>("OCRM_SERVER");
+                        config.Demo = hostContext.Configuration.GetValue<bool>("OCRM_DEMO", false);
                     });
-                    services.AddHttpClient<IHlidacRest,HlidacRest>(config => 
+                    services.AddHttpClient<IHlidacRest, HlidacRest>(config =>
                     {
                         config.BaseAddress = new Uri(hostContext.Configuration.GetValue<string>("base_address"));
                         config.DefaultRequestHeaders.Add("User-Agent", hostContext.Configuration.GetValue<string>("user_agent"));
-
                     });
                     services.AddLogging(config =>
                     {
                         config.AddConsole();
                     });
-
                 }).UseConsoleLifetime();
 
             var host = builder.Build();
 
+            #endregion configuration
+
             using (var serviceScope = host.Services.CreateScope())
             {
                 var services = serviceScope.ServiceProvider;
-
+                int taskCounter = 0;
                 try
                 {
                     var hlidacRest = services.GetRequiredService<IHlidacRest>();
                     var logger = services.GetRequiredService<ILogger<Program>>();
 
                     logger.LogInformation("OCR minion initialized.");
-                    var nextTask = GetNewImage(hlidacRest, logger);
+                    Queue<Task<HlidacTask>> taskQueue = new Queue<Task<HlidacTask>>(3);
+                    taskQueue.Enqueue(GetNewImage(hlidacRest, logger));
 
                     while (true)
                     {
-
                         // todo: try catch, polly???
-                        HlidacTask currentTask = await nextTask;
+                        HlidacTask currentTask = await taskQueue.Dequeue();
 
-                        // run OCR and wait for its end https://github.com/jamesmanning/RunProcessAsTask
+                        logger.LogInformation($"Starting to process {++taskCounter}. task.");
+                        // run OCR and wait for its end
+                        // to run OCR asynchronously I am using this library: https://github.com/jamesmanning/RunProcessAsTask
                         DateTime taskStart = DateTime.Now;
-                        //string tesseractArgs = $"tesseract {currentTask.TaskId} {currentTask.TaskId}.txt -l CES --psm 1 --dpi 300".Replace("\"", "\\\"");
-                        //Task<ProcessResults> tesseractTask = ProcessEx.RunAsync("/bin/sh", tesseractArgs);
-                        // win
-                        string tesseractArgs = $"{currentTask.TaskId} {currentTask.TaskId}";
-                        Task<ProcessResults> tesseractTask = ProcessEx.RunAsync("tesseract.exe", tesseractArgs);
+                        Task<ProcessResults> tesseractTask;
+                        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                        {
+                            // this part is here only for debugging purposes
+                            string tesseractArgs = $"{currentTask.TaskId} {currentTask.TaskId}";
+                            tesseractTask = ProcessEx.RunAsync("tesseract.exe", tesseractArgs);
+                        }
+                        else
+                        {
+                            string tesseractArgs = $"tesseract {currentTask.TaskId} {currentTask.TaskId} -l CES --psm 1 --dpi 300".Replace("\"", "\\\"");
+                            tesseractTask = ProcessEx.RunAsync("/bin/sh", tesseractArgs);
+                        }
 
                         // we can preload new image here, so we doesnt have to wait for it later
-                        nextTask = GetNewImage(hlidacRest, logger);
+                        taskQueue.Enqueue(GetNewImage(hlidacRest, logger));
 
                         var tesseractResult = await tesseractTask;
                         DateTime taskEnd = DateTime.Now;
@@ -100,9 +114,15 @@ namespace OcrMinion
 
                             File.Delete(currentTask.TaskId);
                         }
+                        else
+                        {
+                            logger.LogWarning("tesseract error");
+                            foreach(string stdout in tesseractResult.StandardError)
+                            {
+                                Console.WriteLine(stdout);
+                            }
+                        }
                     }
-
-
                 }
                 catch (Exception ex)
                 {
@@ -120,7 +140,7 @@ namespace OcrMinion
             logger.LogInformation("Getting new image.");
             HlidacTask task = await hlidacRest.GetTaskAsync();
 
-            if(task != null && !string.IsNullOrWhiteSpace(task.TaskId))
+            if (task != null && !string.IsNullOrWhiteSpace(task.TaskId))
             {
                 var file = await hlidacRest.GetFileToAnalyzeAsync(task.TaskId);
                 using (var fileStream = new FileStream(task.TaskId, FileMode.Create, FileAccess.Write))
@@ -130,12 +150,10 @@ namespace OcrMinion
             }
             else
             {
-                // retry??
+                // retry?? or polly? :)
             }
             return task;
         }
-
-
     }
 }
 
@@ -145,7 +163,6 @@ API:
 env:
 apikey
 server (pokud není, tak vygenerovat vlastní)
-
 
 GET https://ocr.hlidacstatu.cz/task.ashx?apikey=APIKEY&server=DockerXYZ&minPriority=0&maxPriority=99&type=image
 
@@ -169,11 +186,10 @@ tesseract volame s parametry  tesseract {filename} {filename} -l CES --psm 1 --d
 
 POST https://ocr.hlidacstatu.cz/donetask.ashx?taskid=00000000-0000-0000-0000-000000000000&method=done
 
-	
-{  
+{
    "Id”:"00000000-0000-0000-0000-000000000000",
    "Documents":[
-      {  
+      {
          "ContentType":"image/jpeg",
          "Filename":"_!_img3.jpg",
          "Text":" \n\nKB\n\n \n\nČíslo účtu | 107-5493970277 /0100|\n\n \n\nKomerční banka, a.s., ",
@@ -192,7 +208,7 @@ POST https://ocr.hlidacstatu.cz/donetask.ashx?taskid=00000000-0000-0000-0000-000
    "Error":null
 }
 
-k JSON: 
+k JSON:
 - Documents.Text - ziskany text z Tesseract
 - Documents.Confidence - nekdy vraci Tesseract
 - Documents.UsedOCR - vzdyt true
