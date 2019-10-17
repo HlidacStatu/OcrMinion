@@ -29,7 +29,10 @@ namespace OcrMinion
                 .ConfigureLogging((hostContext, logging) =>
                 {
                     logging.AddConfiguration(hostContext.Configuration.GetSection("Logging"));
-                    logging.AddConsole();
+                    logging.AddConsole(config => 
+                    {
+                        config.TimestampFormat = "yyyy-MM-dd HH:mm:ss; ";
+                    });
                 })
                 .ConfigureServices((hostContext, services) =>
                 {
