@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "OcrMinion": {
+      "commandName": "Project"
+    },
+    "Docker": {
+      "commandName": "Docker"
+    }
+  }
+}
