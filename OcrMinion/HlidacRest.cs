@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Net.Http;
+using System.Net.Mime;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
@@ -31,7 +33,7 @@ namespace OcrMinion
         public async Task<HlidacTask> GetTaskAsync()
         {
             var request = new HttpRequestMessage(HttpMethod.Get,
-                    $"/task.ashx?apikey={_apiKey}&server=DockerXYZ&minPriority=0&maxPriority=99&type=image");
+                    $"/task.ashx?apikey={_apiKey}&server={_server}&minPriority=0&maxPriority=99&type=image&demo=1");
                         
             var response = await _httpClient.SendAsync(request);
 
@@ -53,7 +55,7 @@ namespace OcrMinion
         public async Task<System.IO.Stream> GetFileToAnalyzeAsync(string taskId)
         {
             var request = new HttpRequestMessage(HttpMethod.Get,
-                    $"/task.ashx?apikey={_apiKey}&taskId={taskId}");
+                    $"/task.ashx?apikey={_apiKey}&server={_server}&taskId={taskId}");
 
             var response = await _httpClient.SendAsync(request);
 
@@ -102,9 +104,35 @@ namespace OcrMinion
             - IsValid: pokud vse ok, pak 1. Jinak 0
             - Error: pokud nastala chyba, pak sem chybova hlaska
         */
-        public async Task SendResultAsync(string text)
+        public async Task SendResultAsync(string taskId, HlidacDocument document)
         {
-            throw new NotImplementedException();
+            document.Server = _server;
+            if (document.Documents.Length > 0)
+            {
+                document.Documents[0].Server = _server;
+            }
+            else
+            {
+                throw new MissingMemberException(nameof(HlidacDocument), nameof(HlidacDocument.Documents));
+            }
+
+            string json = JsonConvert.SerializeObject(document);
+
+            var request = new HttpRequestMessage(HttpMethod.Post,
+                    $"/donetask.ashx?apikey={_apiKey}&server={_server}&taskId={taskId}&method=done");
+            request.Content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
+
+            var response = await _httpClient.SendAsync(request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadAsStringAsync();
+            }
+            else
+            {
+                throw new HttpRequestException($"GetFileToAnalyzeAsync failed with {response.StatusCode}");
+            }
+
         }
     }
 }

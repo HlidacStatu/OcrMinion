@@ -4,9 +4,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using RunProcessAsTask;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using System.Text;
 
 namespace OcrMinion
 {
@@ -18,21 +18,25 @@ namespace OcrMinion
                 .ConfigureAppConfiguration(configure =>
                 {
                     configure.SetBasePath(Directory.GetCurrentDirectory())
-                        .AddEnvironmentVariables()
-                        .AddJsonFile("appsettings.json", optional: true);
+                        .AddJsonFile("appsettings.json", optional: true)
+                        .AddEnvironmentVariables();
                 })
                 .ConfigureServices((hostContext, services) =>
                 {
                     services.Configure<HlidacOption>(config =>
                     {
-                        config.ApiKey = "abcd";
-                        config.Server = "myDocker";
+                        config.ApiKey = hostContext.Configuration.GetValue<string>("OCRM_APIKEY");
+                        config.Server = hostContext.Configuration.GetValue<string>("OCRM_SERVER");
                     });
-                    services.AddHttpClient<IHlidacRest>(config => 
+                    services.AddHttpClient<IHlidacRest,HlidacRest>(config => 
                     {
-                        config.BaseAddress = new Uri("https://ocr.hlidacstatu.cz");
-                        config.DefaultRequestHeaders.Add("User-Agent", "OcrMinion");
+                        config.BaseAddress = new Uri(hostContext.Configuration.GetValue<string>("base_address"));
+                        config.DefaultRequestHeaders.Add("User-Agent", hostContext.Configuration.GetValue<string>("user_agent"));
 
+                    });
+                    services.AddLogging(config =>
+                    {
+                        config.AddConsole();
                     });
 
                 }).UseConsoleLifetime();
@@ -45,35 +49,54 @@ namespace OcrMinion
 
                 try
                 {
-                    string apiKey = "xxxyyyzzz";
                     var hlidacRest = services.GetRequiredService<IHlidacRest>();
-                    Queue<HlidacTask> taskQueue = new Queue<HlidacTask>(3);
+                    var logger = services.GetRequiredService<ILogger<Program>>();
 
-                    var nextTask = GetNewImage(hlidacRest, apiKey);
+                    logger.LogInformation("OCR minion initialized.");
+                    var nextTask = GetNewImage(hlidacRest, logger);
 
                     while (true)
                     {
-                        // program body here??
 
                         // todo: try catch, polly???
-
                         HlidacTask currentTask = await nextTask;
 
-
                         // run OCR and wait for its end https://github.com/jamesmanning/RunProcessAsTask
-                        string tesseractArgs = $"tesseract {currentTask.TaskId} {currentTask.TaskId}.txt -l CES --psm 1 --dpi 300".Replace("\"", "\\\"");
-                        Task<ProcessResults> tesseractTask = ProcessEx.RunAsync("/bin/sh", tesseractArgs);
+                        DateTime taskStart = DateTime.Now;
+                        //string tesseractArgs = $"tesseract {currentTask.TaskId} {currentTask.TaskId}.txt -l CES --psm 1 --dpi 300".Replace("\"", "\\\"");
+                        //Task<ProcessResults> tesseractTask = ProcessEx.RunAsync("/bin/sh", tesseractArgs);
+                        // win
+                        string tesseractArgs = $"{currentTask.TaskId} {currentTask.TaskId}";
+                        Task<ProcessResults> tesseractTask = ProcessEx.RunAsync("tesseract.exe", tesseractArgs);
 
-
-                        // tady můžu už spustit další load nového obrázku
-                        nextTask = GetNewImage(hlidacRest, apiKey);
+                        // we can preload new image here, so we doesnt have to wait for it later
+                        nextTask = GetNewImage(hlidacRest, logger);
 
                         var tesseractResult = await tesseractTask;
+                        DateTime taskEnd = DateTime.Now;
                         if (tesseractResult.ExitCode == 0)
                         {
-                            string text = await File.ReadAllTextAsync(currentTask.TaskId);
+                            string text = await File.ReadAllTextAsync($"{currentTask.TaskId}.txt", Encoding.UTF8);
 
-                            await hlidacRest.SendResultAsync(apiKey, text);
+                            HlidacDocument document = new HlidacDocument()
+                            {
+                                Id = currentTask.TaskId,
+                                Started = taskStart,
+                                Ends = taskEnd,
+                                IsValid = 1,
+                                Error = null,
+                                Documents = new DocumentInfo[]
+                                {
+                                    new DocumentInfo()
+                                    {
+                                        Filename = currentTask.OrigFileName,
+                                        RemainsInSec = tesseractResult.RunTime.TotalSeconds.ToString(),
+                                        Text = text
+                                    }
+                                }
+                            };
+
+                            await hlidacRest.SendResultAsync(currentTask.TaskId, document);
 
                             File.Delete(currentTask.TaskId);
                         }
@@ -92,13 +115,14 @@ namespace OcrMinion
             return 0;
         }
 
-        private static async Task<HlidacTask> GetNewImage(IHlidacRest hlidacRest, string apiKey)
+        private static async Task<HlidacTask> GetNewImage(IHlidacRest hlidacRest, ILogger logger)
         {
-            HlidacTask task = await hlidacRest.GetTaskAsync(apiKey);
+            logger.LogInformation("Getting new image.");
+            HlidacTask task = await hlidacRest.GetTaskAsync();
 
             if(task != null && !string.IsNullOrWhiteSpace(task.TaskId))
             {
-                var file = await hlidacRest.GetFileToAnalyzeAsync(apiKey, task.TaskId);
+                var file = await hlidacRest.GetFileToAnalyzeAsync(task.TaskId);
                 using (var fileStream = new FileStream(task.TaskId, FileMode.Create, FileAccess.Write))
                 {
                     await file.CopyToAsync(fileStream);

@@ -6,6 +6,6 @@ namespace OcrMinion
     {
         Task<HlidacTask> GetTaskAsync();
         Task<System.IO.Stream> GetFileToAnalyzeAsync(string taskId);
-        Task SendResultAsync(string text);
+        Task SendResultAsync(string taskId, HlidacDocument document);
     }
 }
