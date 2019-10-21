@@ -16,4 +16,5 @@ FROM base AS final
 RUN apk add --no-cache -U tesseract-ocr tesseract-ocr-data-ces tesseract-ocr-data-slk tesseract-deu
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "OcrMinion.dll"]
+RUN chmod +x start.sh
+CMD ["./start.sh"]

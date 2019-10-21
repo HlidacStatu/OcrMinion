@@ -22,6 +22,8 @@ namespace OcrMinion
             const string env_apiKey = "OCRM_APIKEY";
             const string env_server = "OCRM_SERVER";
             const string env_demo = "OCRM_DEMO";
+            const string base_address = "base_address";
+            const string user_agent = "user_agent";
 
             var confBuilder = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
@@ -36,6 +38,15 @@ namespace OcrMinion
                 Console.WriteLine($"Environment variable{env_apiKey} is not set. Exiting app.");
                 return 1;
             }
+            // write basic configuration to stdout
+            Console.WriteLine("Loaded configuration:");
+            Console.WriteLine($"  {env_apiKey}={appConfiguration.GetValue<string>(env_apiKey)}");
+            Console.WriteLine($"  {env_server}={appConfiguration.GetValue<string>(env_server)}");
+            Console.WriteLine($"  {env_demo}={appConfiguration.GetValue<bool>(env_demo)}");
+            Console.WriteLine($"  {base_address}={appConfiguration.GetValue<bool>(base_address)}");
+            Console.WriteLine($"  {user_agent}={appConfiguration.GetValue<bool>(user_agent)}");
+
+
             #endregion
             // todo: graceful shutdown https://stackoverflow.com/questions/40742192/how-to-do-gracefully-shutdown-on-dotnet-with-docker
             #region configuration
@@ -65,8 +76,8 @@ namespace OcrMinion
 
                     services.AddHttpClient<IHlidacRest, HlidacRest>(config =>
                     {
-                        config.BaseAddress = new Uri(hostContext.Configuration.GetValue<string>("base_address"));
-                        config.DefaultRequestHeaders.Add("User-Agent", hostContext.Configuration.GetValue<string>("user_agent"));
+                        config.BaseAddress = new Uri(hostContext.Configuration.GetValue<string>(base_address));
+                        config.DefaultRequestHeaders.Add("User-Agent", hostContext.Configuration.GetValue<string>(user_agent));
                     })
                     .AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(
                         TimeSpan.FromMinutes(5), // polly wait max 5 minutes for response
@@ -186,65 +197,3 @@ namespace OcrMinion
         }
     }
 }
-
-/*
-API:
-1) Získání tasku
-env:
-apikey
-server (pokud není, tak vygenerovat vlastní)
-
-GET https://ocr.hlidacstatu.cz/task.ashx?apikey=APIKEY&server=DockerXYZ&minPriority=0&maxPriority=99&type=image
-
-pokud pridate &demo=1, pak to vrati testovaci task(ten ma nulove GUID). pri demo = 1 muze byt APIKEY cokoliv
-
-to vrati
-{"TaskId":"00000000-0000-0000-0000-000000000000","Priority":5,"Intensity":0,"OrigFilename":"testfile.jpg","localTempFile":null}
-
-anebo to nevrati nic.Pak zadny task ve fronte neni.
-
-server= DockerXYZ je jmeno serveru, ktery o task zada (rekneme jmeno Docker stroje nebo neco takoveho)
-
-2) Pokud je nejaky task, je nutne ziskat soubor k analyze
-GET https://ocr.hlidacstatu.cz/task.ashx?taskid=00000000-0000-0000-0000-000000000000
-
-to vrati binarku souboru(v tomto pripade vzdy JPEG). U nuloveho GUID vzdy stejny testovaci soubor.
-
-tesseract volame s parametry  tesseract {filename} {filename} -l CES --psm 1 --dpi 300
-
-3) Kdyz je zpracovani hotove, je nutne zavolat
-
-POST https://ocr.hlidacstatu.cz/donetask.ashx?taskid=00000000-0000-0000-0000-000000000000&method=done
-
-{
-   "Id”:"00000000-0000-0000-0000-000000000000",
-   "Documents":[
-      {
-         "ContentType":"image/jpeg",
-         "Filename":"_!_img3.jpg",
-         "Text":" \n\nKB\n\n \n\nČíslo účtu | 107-5493970277 /0100|\n\n \n\nKomerční banka, a.s., ",
-         "Confidence":0.0,
-         "UsedOCR":true,
-         "Pages":0,
-         "RemainsInSec":0.0,
-         "UsedTool”:”Tesseract",
-         "Server”:”DockerXYZ"
-      }
-   ],
-   "Server”:”DockerXYZ",
-   "Started":"2019-09-24T03:07:00.4195551+02:00",
-   "Ends":"2019-09-24T03:07:30.1851238+02:00",
-   "IsValid":1,
-   "Error":null
-}
-
-k JSON:
-- Documents.Text - ziskany text z Tesseract
-- Documents.Confidence - nekdy vraci Tesseract
-- Documents.UsedOCR - vzdyt true
-- Documents.Pages - vzdy 0
-- Documents.RemainsInSec: doba v sekundach, jak dlouho task bezel
-- Documents.UsedTool: ’Tesseract'
-- IsValid: pokud vse ok, pak 1. Jinak 0
-- Error: pokud nastala chyba, pak sem chybova hlaska
-*/
