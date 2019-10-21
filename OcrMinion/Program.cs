@@ -123,7 +123,7 @@ namespace OcrMinion
                             }
                             else
                             {
-                                string tesseractArgs = $"{currentTask.InternalFileName} {currentTask.InternalFileName} -l CES --psm 1 --dpi 300".Replace("\"", "\\\"");
+                                string tesseractArgs = $"{currentTask.InternalFileName} {currentTask.InternalFileName} -l ces --psm 1 --dpi 300".Replace("\"", "\\\"");
                                 tesseractTask = ProcessEx.RunAsync("tesseract", tesseractArgs);
                             }
 
