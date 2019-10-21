@@ -123,8 +123,8 @@ namespace OcrMinion
                             }
                             else
                             {
-                                string tesseractArgs = $"tesseract {currentTask.InternalFileName} {currentTask.InternalFileName} -l CES --psm 1 --dpi 300".Replace("\"", "\\\"");
-                                tesseractTask = ProcessEx.RunAsync("/bin/sh", tesseractArgs);
+                                string tesseractArgs = $"{currentTask.InternalFileName} {currentTask.InternalFileName} -l CES --psm 1 --dpi 300".Replace("\"", "\\\"");
+                                tesseractTask = ProcessEx.RunAsync("tesseract", tesseractArgs);
                             }
 
                             // we can preload new image here, so we doesnt have to wait for it later
