@@ -11,5 +11,6 @@ namespace OcrMinion
         public string OrigFileName { get; set; }
         public string LocalTempFile { get; set; }
         public string InternalFileName { get; } = Guid.NewGuid().ToString();
+        public bool IsValid { get; set; } = true;
     }
 }
