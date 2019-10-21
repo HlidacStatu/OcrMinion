@@ -13,7 +13,7 @@ FROM build AS publish
 RUN dotnet publish "OcrMinion.csproj" -c Release -o /app/publish
 
 FROM base AS final
-RUN apk add --no-cache -U tesseract-ocr tesseract-ocr-data-ces tesseract-ocr-data-slk tesseract-deu
+RUN apk add --no-cache -U tesseract-ocr tesseract-ocr-data-ces tesseract-ocr-data-slk tesseract-ocr-data-deu
 WORKDIR /app
 COPY --from=publish /app/publish .
 RUN chmod +x start.sh
