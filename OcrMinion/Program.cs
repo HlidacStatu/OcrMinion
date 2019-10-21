@@ -2,10 +2,12 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Polly;
 using RunProcessAsTask;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -16,7 +18,18 @@ namespace OcrMinion
     {
         private static async Task<int> Main(string[] args)
         {
+            const string env_apiKey = "OCRM_APIKEY";
+            const string env_server = "OCRM_SERVER";
+            const string env_demo = "OCRM_DEMO";
+
+            // should be also combined with value from json file...
+            //if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(env_apiKey)))
+            //{
+            //    Console.WriteLine($"Environment variable{env_apiKey} is not set")
+            //}
+
             // todo: graceful shutdown https://stackoverflow.com/questions/40742192/how-to-do-gracefully-shutdown-on-dotnet-with-docker
+            // todo: check if apikey is set before start (otherwise shutdown)
             #region configuration
 
             var builder = new HostBuilder()
@@ -29,7 +42,7 @@ namespace OcrMinion
                 .ConfigureLogging((hostContext, logging) =>
                 {
                     logging.AddConfiguration(hostContext.Configuration.GetSection("Logging"));
-                    logging.AddConsole(config => 
+                    logging.AddConsole(config =>
                     {
                         config.TimestampFormat = "yyyy-MM-dd HH:mm:ss; ";
                     });
@@ -38,15 +51,21 @@ namespace OcrMinion
                 {
                     services.Configure<HlidacOption>(config =>
                     {
-                        config.ApiKey = hostContext.Configuration.GetValue<string>("OCRM_APIKEY");
-                        config.Server = hostContext.Configuration.GetValue<string>("OCRM_SERVER"); //todo: default value should be guid
-                        config.Demo = hostContext.Configuration.GetValue<bool>("OCRM_DEMO", false);
+                        config.ApiKey = hostContext.Configuration.GetValue<string>(env_apiKey);
+                        config.Server = hostContext.Configuration.GetValue<string>(env_server); //todo: default value should be guid
+                        config.Demo = hostContext.Configuration.GetValue<bool>(env_demo, false);
                     });
+
                     services.AddHttpClient<IHlidacRest, HlidacRest>(config =>
                     {
                         config.BaseAddress = new Uri(hostContext.Configuration.GetValue<string>("base_address"));
                         config.DefaultRequestHeaders.Add("User-Agent", hostContext.Configuration.GetValue<string>("user_agent"));
-                    });
+                    })
+                    .AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(
+                        TimeSpan.FromMinutes(5), // polly wait max 5 minutes for response
+                        Polly.Timeout.TimeoutStrategy.Optimistic))
+                    .AddTransientHttpErrorPolicy(pb => pb.RetryAsync(1000)) // polly retry sending request if it fails up to 1000 times
+                    .AddTransientHttpErrorPolicy(pb => pb.CircuitBreakerAsync(5, TimeSpan.FromMinutes(1))); // if request fails 5 times consecutively, then wait 1 minute before sending another request
                 }).UseConsoleLifetime();
 
             var host = builder.Build();
@@ -68,10 +87,10 @@ namespace OcrMinion
 
                     while (true)
                     {
-                        // todo: try catch, polly???
                         HlidacTask currentTask = await taskQueue.Dequeue();
 
                         logger.LogInformation($"Starting OCR process of {++taskCounter}. task.");
+
                         // run OCR and wait for its end
                         // to run OCR asynchronously I am using this library: https://github.com/jamesmanning/RunProcessAsTask
                         DateTime taskStart = DateTime.Now;
@@ -99,14 +118,14 @@ namespace OcrMinion
                             logger.LogInformation($"OCR process of {taskCounter}. task successfully finished.");
                             string text = await File.ReadAllTextAsync($"{currentTask.InternalFileName}.txt", Encoding.UTF8);
 
-                            HlidacDocument document = new HlidacDocument(currentTask.TaskId, 
-                                taskStart, taskEnd, currentTask.OrigFileName, text, 
+                            HlidacDocument document = new HlidacDocument(currentTask.TaskId,
+                                taskStart, taskEnd, currentTask.OrigFileName, text,
                                 tesseractResult.RunTime.TotalSeconds.ToString());
 
                             await hlidacRest.SendResultAsync(currentTask.TaskId, document);
 
                             File.Delete(currentTask.InternalFileName);
-                            File.Delete(currentTask.InternalFileName +".txt");
+                            File.Delete(currentTask.InternalFileName + ".txt");
                         }
                         else
                         {
