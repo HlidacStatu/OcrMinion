@@ -43,8 +43,8 @@ namespace OcrMinion
             Console.WriteLine($"  {env_apiKey}={appConfiguration.GetValue<string>(env_apiKey)}");
             Console.WriteLine($"  {env_server}={appConfiguration.GetValue<string>(env_server)}");
             Console.WriteLine($"  {env_demo}={appConfiguration.GetValue<bool>(env_demo)}");
-            Console.WriteLine($"  {base_address}={appConfiguration.GetValue<bool>(base_address)}");
-            Console.WriteLine($"  {user_agent}={appConfiguration.GetValue<bool>(user_agent)}");
+            Console.WriteLine($"  {base_address}={appConfiguration.GetValue<string>(base_address)}");
+            Console.WriteLine($"  {user_agent}={appConfiguration.GetValue<string>(user_agent)}");
 
 
             #endregion
