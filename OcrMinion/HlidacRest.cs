@@ -13,7 +13,7 @@ namespace OcrMinion
     {
         private readonly HttpClient _httpClient;
         private readonly string _apiKey;
-        private readonly string _server;
+        private readonly string _email;
         private readonly bool _isDemo;
         private readonly ILogger _logger;
 
@@ -21,7 +21,7 @@ namespace OcrMinion
         {
             _httpClient = client;
             _apiKey = options.CurrentValue.ApiKey;
-            _server = options.CurrentValue.Server;
+            _email = options.CurrentValue.Email;
             _isDemo = options.CurrentValue.Demo;
             _logger = logger;
         }
@@ -39,7 +39,7 @@ namespace OcrMinion
         {
             string demoParam = (_isDemo) ? "&demo=1" : "";
             var request = new HttpRequestMessage(HttpMethod.Get,
-                    $"/task.ashx?apikey={_apiKey}&server={_server}&minPriority=0&maxPriority=99&type=image{demoParam}");
+                    $"/task.ashx?apikey={_apiKey}&server={_email}&minPriority=0&maxPriority=99&type=image{demoParam}");
             _logger.LogDebug($"sending request: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
             var response = await _httpClient.SendAsync(request);
 
@@ -65,7 +65,7 @@ namespace OcrMinion
         public async Task<System.IO.Stream> GetFileToAnalyzeAsync(string taskId)
         {
             var request = new HttpRequestMessage(HttpMethod.Get,
-                    $"/task.ashx?apikey={_apiKey}&server={_server}&taskId={taskId}");
+                    $"/task.ashx?apikey={_apiKey}&server={_email}&taskId={taskId}");
             _logger.LogDebug($"sending request: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
             var response = await _httpClient.SendAsync(request);
 
@@ -118,20 +118,21 @@ namespace OcrMinion
 
         public async Task SendResultAsync(string taskId, HlidacDocument document)
         {
-            document.Server = _server;
+            document.Server = _email;
             if (document.Documents.Length > 0)
             {
-                document.Documents[0].Server = _server;
+                document.Documents[0].Server = _email;
             }
             else
             {
+                _logger.LogError("Invalid document. This should never happen.");
                 throw new MissingMemberException(nameof(HlidacDocument), nameof(HlidacDocument.Documents));
             }
 
             string json = JsonConvert.SerializeObject(document);
 
             var request = new HttpRequestMessage(HttpMethod.Post,
-                    $"/donetask.ashx?apikey={_apiKey}&server={_server}&taskId={taskId}&method=done");
+                    $"/donetask.ashx?apikey={_apiKey}&server={_email}&taskId={taskId}&method=done");
             request.Content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
             _logger.LogDebug($"sending request: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
             var response = await _httpClient.SendAsync(request);

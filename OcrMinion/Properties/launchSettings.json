@@ -1,10 +1,10 @@
 {
   "profiles": {
     "OcrMinion": {
-      "commandName": "Project"
-    },
-    "Docker": {
-      "commandName": "Docker"
+      "commandName": "Project",
+      "environmentVariables": {
+        "OCRM_DEMO": "true"
+      }
     }
   }
 }

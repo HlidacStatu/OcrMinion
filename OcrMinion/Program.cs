@@ -21,7 +21,7 @@ namespace OcrMinion
             #region preconfiguration
 
             const string env_apiKey = "OCRM_APIKEY";
-            const string env_server = "OCRM_SERVER";
+            const string env_email = "OCRM_EMAIL";
             const string env_demo = "OCRM_DEMO";
             const string base_address = "base_address";
             const string user_agent = "user_agent";
@@ -42,7 +42,7 @@ namespace OcrMinion
             // write basic configuration to stdout
             Console.WriteLine("Loaded configuration:");
             Console.WriteLine($"  {env_apiKey}={appConfiguration.GetValue<string>(env_apiKey)}");
-            Console.WriteLine($"  {env_server}={appConfiguration.GetValue<string>(env_server)}");
+            Console.WriteLine($"  {env_email}={appConfiguration.GetValue<string>(env_email)}");
             Console.WriteLine($"  {env_demo}={appConfiguration.GetValue<bool>(env_demo)}");
             Console.WriteLine($"  {base_address}={appConfiguration.GetValue<string>(base_address)}");
             Console.WriteLine($"  {user_agent}={appConfiguration.GetValue<string>(user_agent)}");
@@ -71,8 +71,11 @@ namespace OcrMinion
                     services.Configure<HlidacOption>(config =>
                     {
                         config.ApiKey = hostContext.Configuration.GetValue<string>(env_apiKey);
-                        config.Server = hostContext.Configuration.GetValue<string>(env_server,
-                            Guid.NewGuid().ToString());
+                        config.Email = hostContext.Configuration.GetValue<string>(env_email);
+                        if (string.IsNullOrWhiteSpace(config.Email))
+                        {
+                            config.Email = Guid.NewGuid().ToString();
+                        }
                         config.Demo = hostContext.Configuration.GetValue<bool>(env_demo, false);
                     });
 
