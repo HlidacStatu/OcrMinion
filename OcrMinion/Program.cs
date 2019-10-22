@@ -16,7 +16,7 @@ namespace OcrMinion
 {
     internal class Program
     {
-        private static async Task<int> Main(string[] args)
+        private static async Task<int> Main()
         {
             #region preconfiguration
 
@@ -110,56 +110,49 @@ namespace OcrMinion
                         HlidacTask currentTask = await taskQueue.Dequeue();
 
                         logger.LogInformation($"Starting OCR process of #{++taskCounter}. task.");
-
-                        if (currentTask.IsValid)
+                        
+                        // run OCR and wait for its end
+                        // to run OCR asynchronously I am using this library: https://github.com/jamesmanning/RunProcessAsTask
+                        DateTime taskStart = DateTime.Now;
+                        Task<ProcessResults> tesseractTask;
+                        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                         {
-                            // run OCR and wait for its end
-                            // to run OCR asynchronously I am using this library: https://github.com/jamesmanning/RunProcessAsTask
-                            DateTime taskStart = DateTime.Now;
-                            Task<ProcessResults> tesseractTask;
-                            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                            {
-                                // this part is here only for debugging purposes
-                                string tesseractArgs = $"{currentTask.InternalFileName} {currentTask.InternalFileName}";
-                                tesseractTask = ProcessEx.RunAsync("tesseract.exe", tesseractArgs);
-                            }
-                            else
-                            {
-                                string tesseractArgs = $"{currentTask.InternalFileName} {currentTask.InternalFileName} -l ces --psm 1 --dpi 300".Replace("\"", "\\\"");
-                                tesseractTask = ProcessEx.RunAsync("tesseract", tesseractArgs);
-                            }
-
-                            // we can preload new image here, so we doesnt have to wait for it later
-                            taskQueue.Enqueue(GetNewImage(hlidacRest, logger));
-
-                            var tesseractResult = await tesseractTask;
-
-                            DateTime taskEnd = DateTime.Now;
-                            if (tesseractResult.ExitCode == 0)
-                            {
-                                logger.LogInformation($"OCR process of #{taskCounter}. task successfully finished.");
-                                string text = await File.ReadAllTextAsync($"{currentTask.InternalFileName}.txt", Encoding.UTF8);
-
-                                HlidacDocument document = new HlidacDocument(currentTask.TaskId,
-                                    taskStart, taskEnd, currentTask.OrigFileName, text,
-                                    tesseractResult.RunTime.TotalSeconds.ToString());
-
-                                await hlidacRest.SendResultAsync(currentTask.TaskId, document);
-
-                                File.Delete(currentTask.InternalFileName);
-                                File.Delete(currentTask.InternalFileName + ".txt");
-                            }
-                            else
-                            {
-                                logger.LogWarning($"OCR process of #{taskCounter}. task unsuccessfully finished.");
-                                logger.LogWarning(string.Join('\n', tesseractResult.StandardError));
-                            }
+                            // this part is here only for debugging purposes
+                            string tesseractArgs = $"{currentTask.InternalFileName} {currentTask.InternalFileName} -l ces --psm 1 --dpi 300";
+                            tesseractTask = ProcessEx.RunAsync("tesseract.exe", tesseractArgs);
                         }
-                        else //task was invalid, load new task
+                        else
                         {
-                            logger.LogInformation($"Task #{taskCounter} was invalid.");
-                            taskQueue.Enqueue(GetNewImage(hlidacRest, logger));
+                            string tesseractArgs = $"{currentTask.InternalFileName} {currentTask.InternalFileName} -l ces --psm 1 --dpi 300".Replace("\"", "\\\"");
+                            tesseractTask = ProcessEx.RunAsync("tesseract", tesseractArgs);
                         }
+
+                        // we can preload new image here, so we doesnt have to wait for it later
+                        taskQueue.Enqueue(GetNewImage(hlidacRest, logger));
+
+                        var tesseractResult = await tesseractTask;
+
+                        DateTime taskEnd = DateTime.Now;
+                        if (tesseractResult.ExitCode == 0)
+                        {
+                            logger.LogInformation($"OCR process of #{taskCounter}. task successfully finished.");
+                            string text = await File.ReadAllTextAsync($"{currentTask.InternalFileName}.txt", Encoding.UTF8);
+
+                            HlidacDocument document = new HlidacDocument(currentTask.TaskId,
+                                taskStart, taskEnd, currentTask.OrigFileName, text,
+                                tesseractResult.RunTime.TotalSeconds.ToString());
+
+                            await hlidacRest.SendResultAsync(currentTask.TaskId, document);
+
+                            File.Delete(currentTask.InternalFileName);
+                            File.Delete(currentTask.InternalFileName + ".txt");
+                        }
+                        else
+                        {
+                            logger.LogWarning($"OCR process of #{taskCounter}. task unsuccessfully finished.");
+                            logger.LogWarning(string.Join('\n', tesseractResult.StandardError));
+                        }
+                        
                     }
                 }
                 catch (Exception ex)
@@ -174,31 +167,31 @@ namespace OcrMinion
         private static async Task<HlidacTask> GetNewImage(IHlidacRest hlidacRest, ILogger logger)
         {
             logger.LogInformation("Getting new image.");
-            HlidacTask task = await hlidacRest.GetTaskAsync();
-            
-            if (task != null && !string.IsNullOrWhiteSpace(task.TaskId))
+            // try to get task until we get some :)
+            while (true)
             {
-                var downloadStream = await hlidacRest.GetFileToAnalyzeAsync(task.TaskId);
-                using (var fileStream = new FileStream(task.InternalFileName, FileMode.Create, FileAccess.Write))
-                {
-                    await downloadStream.CopyToAsync(fileStream);
-                }
-                logger.LogInformation($"Image for task[{task.TaskId}] successfully downloaded.");
-            }
-            else
-            {
-                string invalidTask = Newtonsoft.Json.JsonConvert.SerializeObject(task);
-                logger.LogWarning($"Returned task is invalid. \n{invalidTask}");
-                task = new HlidacTask
-                {
-                    IsValid = false
-                };
+                HlidacTask task = await hlidacRest.GetTaskAsync();
 
-                // invalid task is probably because there were no tasks to process on server side, we need to wait some time
-                // todo - this can be done in polly probably
-                await Task.Delay(TimeSpan.FromMinutes(1));
+                if (task != null && !string.IsNullOrWhiteSpace(task.TaskId))
+                {
+                    var downloadStream = await hlidacRest.GetFileToAnalyzeAsync(task.TaskId);
+                    using (var fileStream = new FileStream(task.InternalFileName, FileMode.Create, FileAccess.Write))
+                    {
+                        await downloadStream.CopyToAsync(fileStream);
+                    }
+                    logger.LogInformation($"Image for task[{task.TaskId}] successfully downloaded.");
+                    return task;
+                }
+                else
+                {
+                    string returnedTask = Newtonsoft.Json.JsonConvert.SerializeObject(task);
+                    logger.LogWarning($"Returned task is invalid. \n{returnedTask}");
+
+                    // invalid task is probably because there were no tasks to process on server side, we need to wait some time
+                    // todo - this can be done in polly probably
+                    await Task.Delay(TimeSpan.FromMinutes(1));
+                } 
             }
-            return task;
         }
     }
 }
