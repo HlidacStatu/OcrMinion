@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Options;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using System;
 using System.Net.Http;
@@ -14,13 +15,15 @@ namespace OcrMinion
         private readonly string _apiKey;
         private readonly string _server;
         private readonly bool _isDemo;
+        private readonly ILogger _logger;
 
-        public HlidacRest(HttpClient client, IOptionsMonitor<HlidacOption> options)
+        public HlidacRest(HttpClient client, IOptionsMonitor<HlidacOption> options, ILogger<HlidacRest> logger)
         {
             _httpClient = client;
             _apiKey = options.CurrentValue.ApiKey;
             _server = options.CurrentValue.Server;
             _isDemo = options.CurrentValue.Demo;
+            _logger = logger;
         }
 
         /*
@@ -37,16 +40,18 @@ namespace OcrMinion
             string demoParam = (_isDemo) ? "&demo=1" : "";
             var request = new HttpRequestMessage(HttpMethod.Get,
                     $"/task.ashx?apikey={_apiKey}&server={_server}&minPriority=0&maxPriority=99&type=image{demoParam}");
-
+            _logger.LogDebug($"sending request: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
             var response = await _httpClient.SendAsync(request);
 
             if (response.IsSuccessStatusCode)
             {
                 var jsonResult = await response.Content.ReadAsStringAsync();
+                _logger.LogDebug($"received response: {jsonResult}");
                 return JsonConvert.DeserializeObject<HlidacTask>(jsonResult);
             }
             else
             {
+                _logger.LogDebug($"response error: {response.StatusCode.ToString()}");
                 throw new HttpRequestException($"GetTaskAsync failed with {response.StatusCode}");
             }
         }
@@ -61,15 +66,17 @@ namespace OcrMinion
         {
             var request = new HttpRequestMessage(HttpMethod.Get,
                     $"/task.ashx?apikey={_apiKey}&server={_server}&taskId={taskId}");
-
+            _logger.LogDebug($"sending request: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
             var response = await _httpClient.SendAsync(request);
 
             if (response.IsSuccessStatusCode)
             {
+                _logger.LogDebug($"response received successfully");
                 return await response.Content.ReadAsStreamAsync();
             }
             else
             {
+                _logger.LogDebug($"response error: {response.StatusCode.ToString()}");
                 throw new HttpRequestException($"GetFileToAnalyzeAsync failed with {response.StatusCode}");
             }
         }
@@ -126,15 +133,17 @@ namespace OcrMinion
             var request = new HttpRequestMessage(HttpMethod.Post,
                     $"/donetask.ashx?apikey={_apiKey}&server={_server}&taskId={taskId}&method=done");
             request.Content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
-
+            _logger.LogDebug($"sending request: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
             var response = await _httpClient.SendAsync(request);
 
             if (response.IsSuccessStatusCode)
             {
                 var result = await response.Content.ReadAsStringAsync();
+                _logger.LogDebug($"received response: {result}");
             }
             else
             {
+                _logger.LogDebug($"response error: {response.StatusCode.ToString()}");
                 throw new HttpRequestException($"GetFileToAnalyzeAsync failed with {response.StatusCode}");
             }
         }

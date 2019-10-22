@@ -175,7 +175,7 @@ namespace OcrMinion
         {
             logger.LogInformation("Getting new image.");
             HlidacTask task = await hlidacRest.GetTaskAsync();
-
+            
             if (task != null && !string.IsNullOrWhiteSpace(task.TaskId))
             {
                 var downloadStream = await hlidacRest.GetFileToAnalyzeAsync(task.TaskId);
@@ -196,7 +196,7 @@ namespace OcrMinion
 
                 // invalid task is probably because there were no tasks to process on server side, we need to wait some time
                 // todo - this can be done in polly probably
-                await Task.Delay(TimeSpan.FromMinutes(2));
+                await Task.Delay(TimeSpan.FromMinutes(1));
             }
             return task;
         }
