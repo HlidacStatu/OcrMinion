@@ -19,6 +19,7 @@ namespace OcrMinion
         private static async Task<int> Main(string[] args)
         {
             #region preconfiguration
+
             const string env_apiKey = "OCRM_APIKEY";
             const string env_server = "OCRM_SERVER";
             const string env_demo = "OCRM_DEMO";
@@ -46,9 +47,10 @@ namespace OcrMinion
             Console.WriteLine($"  {base_address}={appConfiguration.GetValue<string>(base_address)}");
             Console.WriteLine($"  {user_agent}={appConfiguration.GetValue<string>(user_agent)}");
 
+            #endregion preconfiguration
 
-            #endregion
             // todo: graceful shutdown https://stackoverflow.com/questions/40742192/how-to-do-gracefully-shutdown-on-dotnet-with-docker
+
             #region configuration
 
             var builder = new HostBuilder()
@@ -188,7 +190,7 @@ namespace OcrMinion
                 string invalidTask = Newtonsoft.Json.JsonConvert.SerializeObject(task);
                 logger.LogWarning($"Returned task is invalid. \n{invalidTask}");
                 task.IsValid = false;
-                
+
                 // invalid task is probably because there were no tasks to process on server side, we need to wait some time
                 // todo - this can be done in polly probably
                 await Task.Delay(TimeSpan.FromMinutes(2));
