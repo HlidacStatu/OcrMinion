@@ -3,7 +3,8 @@
     "OcrMinion": {
       "commandName": "Project",
       "environmentVariables": {
-        "OCRM_DEMO": "true"
+        "OCRM_DEMO": "true",
+        "OCRM_APIKEY": "xxxxx"
       }
     }
   }

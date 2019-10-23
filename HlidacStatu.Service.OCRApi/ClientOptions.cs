@@ -1,6 +1,6 @@
-﻿namespace OcrMinion
+﻿namespace HlidacStatu.Service.OCRApi
 {
-    internal class HlidacOption
+    public class ClientOptions
     {
         public string ApiKey { get; set; }
         public string Email { get; set; }

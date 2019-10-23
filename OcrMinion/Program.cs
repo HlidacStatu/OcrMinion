@@ -11,8 +11,9 @@ using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using HlidacStatu.Service.OCRApi;
 
-namespace OcrMinion
+namespace HlidacStatu.OcrMinion
 {
     internal class Program
     {
@@ -52,7 +53,7 @@ namespace OcrMinion
             // todo: graceful shutdown https://stackoverflow.com/questions/40742192/how-to-do-gracefully-shutdown-on-dotnet-with-docker
 
             #region configuration
-
+            
             var builder = new HostBuilder()
                 .ConfigureAppConfiguration(configure =>
                 {
@@ -68,7 +69,7 @@ namespace OcrMinion
                 })
                 .ConfigureServices((hostContext, services) =>
                 {
-                    services.Configure<HlidacOption>(config =>
+                    services.Configure<ClientOptions>(config =>
                     {
                         config.ApiKey = hostContext.Configuration.GetValue<string>(env_apiKey);
                         config.Email = hostContext.Configuration.GetValue<string>(env_email);
@@ -79,7 +80,7 @@ namespace OcrMinion
                         config.Demo = hostContext.Configuration.GetValue<bool>(env_demo, false);
                     });
 
-                    services.AddHttpClient<IHlidacRest, HlidacRest>(config =>
+                    services.AddHttpClient<IClient, RestClient>(config =>
                     {
                         config.BaseAddress = new Uri(hostContext.Configuration.GetValue<string>(base_address));
                         config.DefaultRequestHeaders.Add("User-Agent", hostContext.Configuration.GetValue<string>(user_agent));
@@ -102,15 +103,15 @@ namespace OcrMinion
                 int taskCounter = 0;
                 try
                 {
-                    var hlidacRest = services.GetRequiredService<IHlidacRest>();
-                    var taskQueue = new Queue<Task<HlidacTask>>(3);
+                    var hlidacRest = services.GetRequiredService<IClient>();
+                    var taskQueue = new Queue<Task<OCRTask>>(3);
 
                     logger.LogInformation("OCR minion initialized.");
                     taskQueue.Enqueue(GetNewImage(hlidacRest, logger));
 
                     while (true)
                     {
-                        HlidacTask currentTask = await taskQueue.Dequeue();
+                        OCRTask currentTask = await taskQueue.Dequeue();
 
                         logger.LogInformation($"Starting OCR process of #{++taskCounter}. task.");
                         
@@ -141,7 +142,7 @@ namespace OcrMinion
                             logger.LogInformation($"OCR process of #{taskCounter}. task successfully finished.");
                             string text = await File.ReadAllTextAsync($"{currentTask.InternalFileName}.txt", Encoding.UTF8);
 
-                            HlidacDocument document = new HlidacDocument(currentTask.TaskId,
+                            Document document = new Document(currentTask.TaskId,
                                 taskStart, taskEnd, currentTask.OrigFileName, text,
                                 tesseractResult.RunTime.TotalSeconds.ToString());
 
@@ -167,13 +168,13 @@ namespace OcrMinion
             }
         }
 
-        private static async Task<HlidacTask> GetNewImage(IHlidacRest hlidacRest, ILogger logger)
+        private static async Task<OCRTask> GetNewImage(IClient hlidacRest, ILogger logger)
         {
             logger.LogInformation("Getting new image.");
             // try to get task until we get some :)
             while (true)
             {
-                HlidacTask task = await hlidacRest.GetTaskAsync();
+                OCRTask task = await hlidacRest.GetTaskAsync();
 
                 if (task != null && !string.IsNullOrWhiteSpace(task.TaskId))
                 {

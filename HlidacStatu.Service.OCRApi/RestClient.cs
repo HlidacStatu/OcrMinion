@@ -7,9 +7,9 @@ using System.Net.Mime;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OcrMinion
+namespace HlidacStatu.Service.OCRApi
 {
-    internal class HlidacRest : IHlidacRest
+    public class RestClient : IClient
     {
         private readonly HttpClient _httpClient;
         private readonly string _apiKey;
@@ -17,7 +17,7 @@ namespace OcrMinion
         private readonly bool _isDemo;
         private readonly ILogger _logger;
 
-        public HlidacRest(HttpClient client, IOptionsMonitor<HlidacOption> options, ILogger<HlidacRest> logger)
+        public RestClient(HttpClient client, IOptionsMonitor<ClientOptions> options, ILogger<RestClient> logger)
         {
             _httpClient = client;
             _apiKey = options.CurrentValue.ApiKey;
@@ -35,7 +35,7 @@ namespace OcrMinion
             server= DockerXYZ je jmeno serveru, ktery o task zada (rekneme jmeno Docker stroje nebo neco takoveho)
         */
 
-        public async Task<HlidacTask> GetTaskAsync()
+        public async Task<OCRTask> GetTaskAsync()
         {
             string demoParam = (_isDemo) ? "&demo=1" : "";
             var request = new HttpRequestMessage(HttpMethod.Get,
@@ -47,7 +47,7 @@ namespace OcrMinion
             {
                 var jsonResult = await response.Content.ReadAsStringAsync();
                 _logger.LogDebug($"received response: {jsonResult}");
-                return JsonConvert.DeserializeObject<HlidacTask>(jsonResult);
+                return JsonConvert.DeserializeObject<OCRTask>(jsonResult);
             }
             else
             {
@@ -116,7 +116,7 @@ namespace OcrMinion
             - Error: pokud nastala chyba, pak sem chybova hlaska
         */
 
-        public async Task SendResultAsync(string taskId, HlidacDocument document)
+        public async Task SendResultAsync(string taskId, Document document)
         {
             document.Server = _email;
             if (document.Documents.Length > 0)
@@ -126,7 +126,7 @@ namespace OcrMinion
             else
             {
                 _logger.LogError("Invalid document. This should never happen.");
-                throw new MissingMemberException(nameof(HlidacDocument), nameof(HlidacDocument.Documents));
+                throw new MissingMemberException(nameof(Document), nameof(Document.Documents));
             }
 
             string json = JsonConvert.SerializeObject(document);

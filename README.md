@@ -52,3 +52,6 @@ Pokud chcete spustit už jednou zastavený balíček, tak k tomu použijte násl
 ``` sh
 docker start minion
 ```  
+
+> :warning: **Pro spuštění zastaveného kontejneru už nepoužívejte příkaz `docker run`. Zbytečně byste vytvořili další instanci!**  
+
