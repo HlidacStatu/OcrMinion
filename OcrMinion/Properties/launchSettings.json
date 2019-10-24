@@ -3,6 +3,7 @@
     "OcrMinion": {
       "commandName": "Project",
       "environmentVariables": {
+        "Logging__LogLevel__Default": "Debug",
         "OCRM_DEMO": "true",
         "OCRM_APIKEY": "xxxxx"
       }
