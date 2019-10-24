@@ -62,10 +62,7 @@ namespace HlidacStatu.OcrMinion
                 .ConfigureLogging((hostContext, logging) =>
                 {
                     logging.AddConfiguration(hostContext.Configuration.GetSection("Logging"));
-                    logging.AddConsole(config =>
-                    {
-                        config.TimestampFormat = "yyyy-MM-dd HH:mm:ss; ";
-                    });
+                    logging.AddConsole(); // time doesn't need timestamp to it, because it is appended by docker
                 })
                 .ConfigureServices((hostContext, services) =>
                 {
@@ -88,8 +85,11 @@ namespace HlidacStatu.OcrMinion
                     .AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(
                         TimeSpan.FromMinutes(5), // polly wait max 5 minutes for response
                         Polly.Timeout.TimeoutStrategy.Optimistic))
-                    .AddTransientHttpErrorPolicy(pb => pb.RetryAsync(1000)) // polly retry sending request if it fails up to 1000 times
-                    .AddTransientHttpErrorPolicy(pb => pb.CircuitBreakerAsync(5, TimeSpan.FromMinutes(1))); // if request fails 5 times consecutively, then wait 1 minute before sending another request
+                    .AddTransientHttpErrorPolicy(pb => 
+                        pb.WaitAndRetryAsync(400, 
+                            retryAttempt => TimeSpan.FromSeconds(retryAttempt/20) )
+                        ); // total waiting time in case of repeating transient error 
+                           // should be about 67 minutes, then app restarts
                 }).UseConsoleLifetime();
 
             var host = builder.Build();
@@ -193,7 +193,7 @@ namespace HlidacStatu.OcrMinion
 
                     // invalid task is probably because there were no tasks to process on server side, we need to wait some time
                     // todo - this can be done in polly probably
-                    await Task.Delay(TimeSpan.FromMinutes(1));
+                    await Task.Delay(TimeSpan.FromSeconds(20));
                 } 
             }
         }
