@@ -1,6 +1,7 @@
 # OcrMinion
 
 Klient pro získávání textů z obrázkových dokumentů pro Hlídač státu.
+[Najdete také na docker hubu](https://hub.docker.com/r/hlidacstatu/ocrminion)
 
 ## Jak ho spustit
 
