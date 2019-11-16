@@ -1,7 +1,10 @@
 # OcrMinion
 
-Klient pro získávání textů z obrázkových dokumentů pro Hlídač státu.
+Klient pro dolování textů z obrázkových dokumentů (OCR) pro Hlídač státu.
 [Najdete také na docker hubu](https://hub.docker.com/r/hlidacstatu/ocrminion)
+
+## Statistiky, aktuálně běžící klienti
+Přehled aktuálně běžících klientů a žebříček nejpracovitějších je na Hlídači státu: https://www.hlidacstatu.cz/api/v1/ocrstat.
 
 ## Jak ho spustit
 
