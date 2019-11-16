@@ -13,7 +13,7 @@ Pak už stačí jen v terminálu/příkazové řádce spustit správný příkaz
 
 ### Základní spuštění
 
-Pokud se v tom nechcete moc hrabat, pak vám bude stačit v následujícím příkaze nahradit hodnotu "mykey" klíčem, který od nás dostanete.
+Pokud se v tom nechcete moc hrabat, pak vám bude stačit v následujícím příkaze nahradit hodnotu "mykey" klíčem, který [od nás dostanete](https://www.hlidacstatu.cz/api).
 
 ```  sh
 docker run --name minion -d -e OCRM_APIKEY=mykey hlidacstatu/ocrminion:latest
@@ -31,8 +31,7 @@ docker run --name minion -d -e OCRM_APIKEY=mykey -e OCRM_EMAIL=muj@mail.cz hlida
 
 ## Environment variables
 
-`OCRM_APIKEY` - Nastavte hodnotu (bez mezer), kterou dostanete od nás. API key získáte na https://www.hlidacstatu.cz/api
-
+`OCRM_APIKEY` - Nastavte hodnotu (bez mezer), kterou dostanete od nás. API key získáte na https://www.hlidacstatu.cz/api  
 `OCRM_EMAIL` - Nastavte vlastní hodnotu (bez mezer), jak chcete být identifikováni serverem. Ideálně svůj email.  
 `OCRM_DEMO` - **true|false** - defaultní hodnota je **false**. Tato hodnota slouží pouze pro testovací účely.  
 `Logging__LogLevel__Default` - **Debug|Information|Warning** - defaultní hodnota je Information. Pokud chcete detailnější informace, poté nastavte na hodnotu **Debug**. Pokud chcete minimální informace, tak nastavte na **Warning**.  
