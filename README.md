@@ -9,11 +9,13 @@ Klient pro získávání textů z obrázkových dokumentů pro Hlídač státu.
 
 Je potřeba mít [nainstalovaný docker](https://docs.docker.com/install/).
 
+Ke spuštění budete potřebovat API klíč, který [získáte po registraci na URL](https://www.hlidacstatu.cz/api)
+
 Pak už stačí jen v terminálu/příkazové řádce spustit správný příkaz.
 
 ### Základní spuštění
 
-Pokud se v tom nechcete moc hrabat, pak vám bude stačit v následujícím příkaze nahradit hodnotu "mykey" klíčem, který [od nás dostanete](https://www.hlidacstatu.cz/api).
+Pokud se v tom nechcete moc hrabat, pak vám bude stačit v následujícím příkaze nahradit hodnotu "mykey" klíčem.
 
 ```  sh
 docker run --name minion -d -e OCRM_APIKEY=mykey hlidacstatu/ocrminion:latest
