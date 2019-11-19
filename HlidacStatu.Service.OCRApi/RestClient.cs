@@ -28,7 +28,7 @@ namespace HlidacStatu.Service.OCRApi
 
         /*
             1) Získání tasku
-            GET https://ocr.hlidacstatu.cz/task.ashx?apikey=APIKEY&server=DockerXYZ&minPriority=0&maxPriority=99&type=image
+            GET https://ocr.hlidacstatu.cz/gettask.ashx?apikey=APIKEY&server=DockerXYZ&minPriority=0&maxPriority=99&type=image
             pokud pridate &demo=1, pak to vrati testovaci task(ten ma nulove GUID). pri demo = 1 muze byt APIKEY cokoliv to vrati
             {"TaskId":"00000000-0000-0000-0000-000000000000","Priority":5,"Intensity":0,"OrigFilename":"testfile.jpg","localTempFile":null}
             anebo to nevrati nic.Pak zadny task ve fronte neni.
@@ -39,33 +39,47 @@ namespace HlidacStatu.Service.OCRApi
         {
             string demoParam = (_isDemo) ? "&demo=1" : "";
             var request = new HttpRequestMessage(HttpMethod.Get,
-                    $"/task.ashx?apikey={_apiKey}&server={_email}&minPriority=0&maxPriority=99&type=image{demoParam}");
+                    $"/gettask.ashx?apikey={_apiKey}&server={_email}&minPriority=0&maxPriority=99&type=image{demoParam}");
+            
             _logger.LogDebug($"sending request: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
             var response = await _httpClient.SendAsync(request);
 
-            if (response.IsSuccessStatusCode)
+            var responseContent = await response.Content.ReadAsStringAsync();
+            _logger.LogDebug($"Response status code: {response.StatusCode.ToString("d")}, content: {responseContent}");
+
+            if (response.StatusCode == System.Net.HttpStatusCode.OK)
             {
-                var jsonResult = await response.Content.ReadAsStringAsync();
-                _logger.LogDebug($"received response: {jsonResult}");
-                return JsonConvert.DeserializeObject<OCRTask>(jsonResult);
+                return JsonConvert.DeserializeObject<OCRTask>(responseContent);
             }
             else
-            {
-                _logger.LogDebug($"response error: {response.StatusCode.ToString()}");
-                throw new HttpRequestException($"GetTaskAsync failed with {response.StatusCode}");
+            { 
+                if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
+                {
+                    var result = JsonConvert.DeserializeObject<ErrorResult>(responseContent);
+                    throw new ServerHasNoTasksException(result.NextRequestInSec);
+                }
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+                    response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    var result = JsonConvert.DeserializeObject<ErrorResult>(responseContent);
+                    throw new BlockedByServerException(result.Error, result.NextRequestInSec);
+                }
             }
+            // todo: other errors - how to treat them???
+            throw new HttpRequestException($"GetTaskAsync failed with {response.StatusCode}");
+            
         }
 
         /* throw new HttpRequestException($"GetFileToAnalyzeAsync failed with {response.StatusCode}");
             2) Pokud je nejaky task, je nutne ziskat soubor k analyze
-            GET https://ocr.hlidacstatu.cz/task.ashx?taskid=00000000-0000-0000-0000-000000000000
+            GET https://ocr.hlidacstatu.cz/gettask.ashx?taskid=00000000-0000-0000-0000-000000000000
             to vrati binarku souboru(v tomto pripade vzdy JPEG). U nuloveho GUID vzdy stejny testovaci soubor.
         */
 
         public async Task<System.IO.Stream> GetFileToAnalyzeAsync(string taskId)
         {
             var request = new HttpRequestMessage(HttpMethod.Get,
-                    $"/task.ashx?apikey={_apiKey}&server={_email}&taskId={taskId}");
+                    $"/gettask.ashx?apikey={_apiKey}&server={_email}&taskId={taskId}");
             _logger.LogDebug($"sending request: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
             var response = await _httpClient.SendAsync(request);
 
