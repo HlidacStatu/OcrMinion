@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ocrminion
+spec:
+  selector:
+    matchLabels:
+      app: ocrminion
+  template:
+    metadata:
+      labels:
+        app: ocrminion
+    spec:
+      securityContext:
+      #  runAsNonRoot: true
+      #  runAsUser: 1000
+      #  fsGroup: 1000
+      containers:
+      - name: minion
+        image: hlidacstatu/ocrminion:latest
+        env:
+        - name: OCRM_APIKEY
+          value: "zde_vlozte_svuj_api_klic"
+        - name: OCRM_EMAIL
+          value: "zde_vložte_svoj_email"
+        resources:
+          # limity jsou sane-default, můžete je upravit
+          # podle vaší infrastruktury
+          limits:
+            cpu: 1
+            memory: 1Gi
+        #securityContext:
+        #  allowPrivilegeEscalation: false
+        #  capabilities:
+        #    drop:
+        #    - all
+        #  procMount: Default
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir:
+          medium: Memory
