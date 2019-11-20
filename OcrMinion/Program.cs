@@ -9,6 +9,7 @@ using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
 using HlidacStatu.Service.OCRApi;
+using Newtonsoft.Json;
 
 namespace HlidacStatu.OcrMinion
 {
@@ -78,16 +79,36 @@ namespace HlidacStatu.OcrMinion
                     {
                         config.BaseAddress = new Uri(hostContext.Configuration.GetValue<string>(base_address));
                         config.DefaultRequestHeaders.Add("User-Agent", hostContext.Configuration.GetValue<string>(user_agent));
+                        config.DefaultRequestHeaders.Add("Accept", "*/*");
                     })
                     .AddPolicyHandler(Policy.TimeoutAsync<HttpResponseMessage>(
                         TimeSpan.FromMinutes(5), // polly wait max 5 minutes for response
                         Polly.Timeout.TimeoutStrategy.Optimistic))
-                    .AddTransientHttpErrorPolicy(pb => 
-                        pb.WaitAndRetryAsync(400, 
-                            retryAttempt => TimeSpan.FromSeconds(retryAttempt/20) )
-                        ); // total waiting time in case of repeating transient error 
-                           // should be about 67 minutes, then app restarts
+                    .AddTransientHttpErrorPolicy(pb =>
 
+                        pb.RetryAsync(60, async (response, attempt) =>
+                        {
+                            int delay = 0;
+                            if (response.Result is null) // network errors
+                            {
+                                delay = 10;
+                            }
+                            else // server errors (500)
+                            {
+                                try
+                                {
+                                    var content = await response.Result.Content.ReadAsStringAsync();
+                                    delay = JsonConvert.DeserializeAnonymousType(content, new { NextRequestInSec = 0 })
+                                        .NextRequestInSec;
+                                }
+                                catch
+                                {
+                                    delay = 60;
+                                }
+                            }
+                            await Task.Delay(TimeSpan.FromSeconds(delay));
+                        })
+                    );
                     services.AddScoped<OcrFlow>();
                 }).UseConsoleLifetime();
 

@@ -40,34 +40,17 @@ namespace HlidacStatu.Service.OCRApi
             string demoParam = (_isDemo) ? "&demo=1" : "";
             var request = new HttpRequestMessage(HttpMethod.Get,
                     $"/gettask.ashx?apikey={_apiKey}&server={_email}&minPriority=0&maxPriority=99&type=image{demoParam}");
-            
-            _logger.LogDebug($"sending request: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
-            var response = await _httpClient.SendAsync(request);
 
-            var responseContent = await response.Content.ReadAsStringAsync();
-            _logger.LogDebug($"Response status code: {response.StatusCode.ToString("d")}, content: {responseContent}");
+            _logger.LogDebug($"Getting task: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
+            var response = await _httpClient.SendAsync(request);
+            _logger.LogDebug($"Response status code: {response.StatusCode.ToString("d")}");
 
             if (response.StatusCode == System.Net.HttpStatusCode.OK)
             {
+                var responseContent = await response.Content.ReadAsStringAsync();
                 return JsonConvert.DeserializeObject<OCRTask>(responseContent);
             }
-            else
-            { 
-                if (response.StatusCode == System.Net.HttpStatusCode.NoContent)
-                {
-                    var result = JsonConvert.DeserializeObject<ErrorResult>(responseContent);
-                    throw new ServerHasNoTasksException(result.NextRequestInSec);
-                }
-                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-                    response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-                {
-                    var result = JsonConvert.DeserializeObject<ErrorResult>(responseContent);
-                    throw new BlockedByServerException(result.Error, result.NextRequestInSec);
-                }
-            }
-            // todo: other errors - how to treat them???
-            throw new HttpRequestException($"GetTaskAsync failed with {response.StatusCode}");
-            
+            throw await TreatErrorsAsync(response);
         }
 
         /* throw new HttpRequestException($"GetFileToAnalyzeAsync failed with {response.StatusCode}");
@@ -80,19 +63,16 @@ namespace HlidacStatu.Service.OCRApi
         {
             var request = new HttpRequestMessage(HttpMethod.Get,
                     $"/gettask.ashx?apikey={_apiKey}&server={_email}&taskId={taskId}");
-            _logger.LogDebug($"sending request: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
-            var response = await _httpClient.SendAsync(request);
 
-            if (response.IsSuccessStatusCode)
+            _logger.LogDebug($"Getting file: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
+            var response = await _httpClient.SendAsync(request);
+            _logger.LogDebug($"Response status code: {response.StatusCode.ToString("d")}");
+
+            if (response.StatusCode == System.Net.HttpStatusCode.OK)
             {
-                _logger.LogDebug($"response received successfully");
                 return await response.Content.ReadAsStreamAsync();
             }
-            else
-            {
-                _logger.LogDebug($"response error: {response.StatusCode.ToString()}");
-                throw new HttpRequestException($"GetFileToAnalyzeAsync failed with {response.StatusCode}");
-            }
+            throw await TreatErrorsAsync(response);
         }
 
         /*
@@ -132,6 +112,45 @@ namespace HlidacStatu.Service.OCRApi
 
         public async Task SendResultAsync(string taskId, Document document)
         {
+            string json = SerializeDocument(document);
+
+            var request = new HttpRequestMessage(HttpMethod.Post,
+                    $"/donetask.ashx?apikey={_apiKey}&server={_email}&taskId={taskId}&method=done");
+            request.Content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
+            
+            _logger.LogDebug($"Sending request: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
+            var response = await _httpClient.SendAsync(request);
+            _logger.LogDebug($"Response status code: {response.StatusCode.ToString("d")}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                //var result = await response.Content.ReadAsStringAsync();
+                return;
+            }
+            throw await TreatErrorsAsync(response);
+        }
+
+        private async Task<Exception> TreatErrorsAsync(HttpResponseMessage httpResponse)
+        {
+            var responseContent = await httpResponse.Content.ReadAsStringAsync();
+            _logger.LogDebug($"Response content: {responseContent}");
+
+            if ((int)httpResponse.StatusCode == 420)
+            {
+                var result = JsonConvert.DeserializeObject<ErrorResult>(responseContent);
+                return new ServerHasNoTasksException(result.NextRequestInSec);
+            }
+            if (httpResponse.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+                httpResponse.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                var result = JsonConvert.DeserializeObject<ErrorResult>(responseContent);
+                return new BlockedByServerException(result.Error, result.NextRequestInSec);
+            }
+            return new HttpRequestException($"Couldn't properly connect to the server - StatusCode: {httpResponse.StatusCode}");
+        }
+
+        private string SerializeDocument(Document document)
+        {
             document.Server = _email;
             if (document.Documents.Length > 0)
             {
@@ -143,24 +162,8 @@ namespace HlidacStatu.Service.OCRApi
                 throw new MissingMemberException(nameof(Document), nameof(Document.Documents));
             }
 
-            string json = JsonConvert.SerializeObject(document);
-
-            var request = new HttpRequestMessage(HttpMethod.Post,
-                    $"/donetask.ashx?apikey={_apiKey}&server={_email}&taskId={taskId}&method=done");
-            request.Content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
-            _logger.LogDebug($"sending request: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
-            var response = await _httpClient.SendAsync(request);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadAsStringAsync();
-                _logger.LogDebug($"received response: {result}");
-            }
-            else
-            {
-                _logger.LogDebug($"response error: {response.StatusCode.ToString()}");
-                throw new HttpRequestException($"GetFileToAnalyzeAsync failed with {response.StatusCode}");
-            }
+            return JsonConvert.SerializeObject(document);
         }
+
     }
 }
