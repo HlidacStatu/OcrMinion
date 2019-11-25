@@ -62,7 +62,7 @@ namespace HlidacStatu.Service.OCRApi
         public async Task<System.IO.Stream> GetFileToAnalyzeAsync(string taskId)
         {
             var request = new HttpRequestMessage(HttpMethod.Get,
-                    $"/gettask.ashx?apikey={_apiKey}&server={_email}&taskId={taskId}");
+                    $"/getdata.ashx?apikey={_apiKey}&server={_email}&taskId={taskId}");
 
             _logger.LogDebug($"Getting file: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
             var response = await _httpClient.SendAsync(request);

@@ -12,8 +12,8 @@ namespace HlidacStatu.OcrMinion
 {
     class OcrFlow
     {
-        ILogger _logger;
-        IClient _hlidacRest;
+        private readonly ILogger _logger;
+        private readonly IClient _hlidacRest;
         public OcrFlow(ILogger<OcrFlow> logger, IClient client)
         {
             _logger = logger;
