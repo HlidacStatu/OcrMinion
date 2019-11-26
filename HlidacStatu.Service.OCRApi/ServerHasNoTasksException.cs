@@ -8,7 +8,5 @@ namespace HlidacStatu.Service.OCRApi
         {
             DelayInSec = delayInSec;
         }
-        //public ServerHasNoTasksException(string message) : base(message){}
-        //public ServerHasNoTasksException(string message, Exception innerException) : base(message, innerException){}
     }
 }

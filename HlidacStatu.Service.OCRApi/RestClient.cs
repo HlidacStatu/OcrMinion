@@ -5,6 +5,7 @@ using System;
 using System.Net.Http;
 using System.Net.Mime;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace HlidacStatu.Service.OCRApi
@@ -14,7 +15,6 @@ namespace HlidacStatu.Service.OCRApi
         private readonly HttpClient _httpClient;
         private readonly string _apiKey;
         private readonly string _email;
-        private readonly bool _isDemo;
         private readonly ILogger _logger;
 
         public RestClient(HttpClient client, IOptionsMonitor<ClientOptions> options, ILogger<RestClient> logger)
@@ -22,7 +22,6 @@ namespace HlidacStatu.Service.OCRApi
             _httpClient = client;
             _apiKey = options.CurrentValue.ApiKey;
             _email = options.CurrentValue.Email;
-            _isDemo = options.CurrentValue.Demo;
             _logger = logger;
         }
 
@@ -35,14 +34,13 @@ namespace HlidacStatu.Service.OCRApi
             server= DockerXYZ je jmeno serveru, ktery o task zada (rekneme jmeno Docker stroje nebo neco takoveho)
         */
 
-        public async Task<OCRTask> GetTaskAsync()
+        public async Task<OCRTask> GetTaskAsync(CancellationToken cancellationToken)
         {
-            string demoParam = (_isDemo) ? "&demo=1" : "";
             var request = new HttpRequestMessage(HttpMethod.Get,
-                    $"/gettask.ashx?apikey={_apiKey}&server={_email}&minPriority=0&maxPriority=99&type=image{demoParam}");
+                    $"/gettask.ashx?apikey={_apiKey}&server={_email}&minPriority=0&maxPriority=99&type=image");
 
             _logger.LogDebug($"Getting task: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
-            var response = await _httpClient.SendAsync(request);
+            var response = await _httpClient.SendAsync(request, cancellationToken);
             _logger.LogDebug($"Response status code: {response.StatusCode.ToString("d")}");
 
             if (response.StatusCode == System.Net.HttpStatusCode.OK)
@@ -59,13 +57,13 @@ namespace HlidacStatu.Service.OCRApi
             to vrati binarku souboru(v tomto pripade vzdy JPEG). U nuloveho GUID vzdy stejny testovaci soubor.
         */
 
-        public async Task<System.IO.Stream> GetFileToAnalyzeAsync(string taskId)
+        public async Task<System.IO.Stream> GetFileToAnalyzeAsync(string taskId, CancellationToken cancellationToken)
         {
             var request = new HttpRequestMessage(HttpMethod.Get,
                     $"/getdata.ashx?apikey={_apiKey}&server={_email}&taskId={taskId}");
 
             _logger.LogDebug($"Getting file: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
-            var response = await _httpClient.SendAsync(request);
+            var response = await _httpClient.SendAsync(request, cancellationToken);
             _logger.LogDebug($"Response status code: {response.StatusCode.ToString("d")}");
 
             if (response.StatusCode == System.Net.HttpStatusCode.OK)
@@ -110,21 +108,38 @@ namespace HlidacStatu.Service.OCRApi
             - Error: pokud nastala chyba, pak sem chybova hlaska
         */
 
-        public async Task SendResultAsync(string taskId, Document document)
+        public async Task SendResultAsync(string taskId, Document document, CancellationToken cancellationToken)
         {
             string json = SerializeDocument(document);
 
             var request = new HttpRequestMessage(HttpMethod.Post,
                     $"/donetask.ashx?apikey={_apiKey}&server={_email}&taskId={taskId}&method=done");
             request.Content = new StringContent(json, Encoding.UTF8, MediaTypeNames.Application.Json);
-            
+
             _logger.LogDebug($"Sending request: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
-            var response = await _httpClient.SendAsync(request);
+            var response = await _httpClient.SendAsync(request, cancellationToken);
             _logger.LogDebug($"Response status code: {response.StatusCode.ToString("d")}");
 
             if (response.IsSuccessStatusCode)
             {
                 //var result = await response.Content.ReadAsStringAsync();
+                return;
+            }
+            throw await TreatErrorsAsync(response);
+        }
+
+        // no cancellation should be here since we need to send this
+        public async Task CancelTaskAsync(string taskId)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get,
+                    $"/canceltask.ashx?apikey={_apiKey}&taskid={taskId}");
+
+            _logger.LogDebug($"Canceling task: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
+            var response = await _httpClient.SendAsync(request);
+            _logger.LogDebug($"Response status code: {response.StatusCode.ToString("d")}");
+
+            if (response.StatusCode == System.Net.HttpStatusCode.OK)
+            {
                 return;
             }
             throw await TreatErrorsAsync(response);
@@ -164,6 +179,5 @@ namespace HlidacStatu.Service.OCRApi
 
             return JsonConvert.SerializeObject(document);
         }
-
     }
 }
