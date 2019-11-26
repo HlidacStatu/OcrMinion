@@ -56,7 +56,6 @@ namespace HlidacStatu.OcrMinion
                     {
                         _logger.LogError(ex, "Guess what? Something went wrong and we don't know what.");
                         // todo: send this error message to a server
-                        return;
                     }
                 }
             }
