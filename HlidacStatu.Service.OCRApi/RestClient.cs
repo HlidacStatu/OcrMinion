@@ -38,6 +38,8 @@ namespace HlidacStatu.Service.OCRApi
         {
             var request = new HttpRequestMessage(HttpMethod.Get,
                     $"/gettask.ashx?apikey={_apiKey}&server={_email}&minPriority=0&maxPriority=99&type=image");
+            //var request = new HttpRequestMessage(HttpMethod.Get,
+            //        $"/gettask.ashx?errortask=401");
 
             _logger.LogDebug($"Getting task: {new Uri(_httpClient.BaseAddress, request.RequestUri)}");
             var response = await _httpClient.SendAsync(request, cancellationToken);

@@ -32,16 +32,26 @@ namespace HlidacStatu.OcrMinion
 
                 await RunTesseractAsync(cancellationToken);
             }
-            catch (ServerHasNoTasksException ex)
+            catch (DelayedException ex)
             {
-                _logger.LogDebug($"{ex.Message} Next try in {ex.DelayInSec.ToString()} seconds.");
-                await Task.Delay(TimeSpan.FromSeconds(ex.DelayInSec), cancellationToken);
-                return;
-            }
-            catch (BlockedByServerException ex)
-            {
-                _logger.LogWarning($"{ex.Message} Next try in {ex.DelayInSec.ToString()} seconds.");
-                await Task.Delay(TimeSpan.FromSeconds(ex.DelayInSec), cancellationToken);
+                if (ex is ServerHasNoTasksException)
+                {
+                    _logger.LogDebug($"{ex.Message} Next try in {ex.DelayInSec.ToString()} seconds.");
+                }
+                else
+                {
+                    _logger.LogWarning($"{ex.Message} Next try in {ex.DelayInSec.ToString()} seconds.");
+                }
+                
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(ex.DelayInSec), cancellationToken);
+                }
+                catch
+                {
+                    // cancellation token called
+                }
+                
                 return;
             }
             catch (TaskCanceledException)
@@ -55,15 +65,19 @@ namespace HlidacStatu.OcrMinion
             catch (Exception ex)
             {
                 _logger.LogWarning($"{ex.Message}.");
-                await Task.Delay(TimeSpan.FromSeconds(5 * 60), cancellationToken); // lets wait for a while
-                Console.WriteLine(ex.Message);
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(5 * 60), cancellationToken); // lets wait for a while
+                }
+                catch
+                {
+                    // cancellation token was called
+                }
             }
             finally
             {
-                if(_currentTask != null)
-                {
-                    Cleanup();
-                }
+             
+                Cleanup();
             }
         }
 
@@ -89,18 +103,21 @@ namespace HlidacStatu.OcrMinion
 
         private void Cleanup()
         {
-            try
+            if (_currentTask != null)
             {
-                File.Delete(_currentTask.InternalFileName);
-                File.Delete(_currentTask.InternalFileName + ".txt");
-            }
-            catch (FileNotFoundException ex)
-            {
-                _logger.LogDebug(ex, $"Error when deleting file [{_currentTask.InternalFileName}]. File doesn't exist.");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, $"Error when deleting file [{_currentTask.InternalFileName}].");
+                try
+                {
+                    File.Delete(_currentTask.InternalFileName);
+                    File.Delete(_currentTask.InternalFileName + ".txt");
+                }
+                catch (FileNotFoundException ex)
+                {
+                    _logger.LogDebug(ex, $"Error when deleting file [{_currentTask.InternalFileName}]. File doesn't exist.");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, $"Error when deleting file [{_currentTask.InternalFileName}].");
+                }
             }
         }
 
@@ -144,5 +161,6 @@ namespace HlidacStatu.OcrMinion
                 await _hlidacRest.SendResultAsync(_currentTask.TaskId, document, cancellationToken);
             }
         }
+
     }
 }
