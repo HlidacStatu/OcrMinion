@@ -17,7 +17,7 @@ spec:
       #  fsGroup: 1000
       containers:
       - name: minion
-        image: hlidacstatu/ocrminion:latest
+        image: hlidacstatu/ocrminion:lin-v2.0
         env:
         - name: OCRM_APIKEY
           value: "zde_vlozte_svuj_api_klic"
