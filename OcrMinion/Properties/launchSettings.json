@@ -5,7 +5,7 @@
       "environmentVariables": {
         "Logging__LogLevel__Default": "Debug",
         "OCRM_DEMO": "true",
-        "OCRM_APIKEY": "xxxxx"
+        "OCRM_APIKEY": "ffffffff-ffff-ffff-ffff-ffffffffffff"
       }
     }
   }
