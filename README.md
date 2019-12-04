@@ -12,7 +12,7 @@ Aktualizaci provedete spuštěním následujících příkazů:
 
 ``` shell
 docker stop minion
-docer container rm minion
+docker container rm minion
 docker run --name minion -d -e OCRM_APIKEY=mykey -e OCRM_EMAIL=muj@mail.cz hlidacstatu/ocrminion:lin-v2.0
 ```
 
