@@ -41,7 +41,7 @@ Přehled aktuálně běžících klientů a žebříček nejpracovitějších je
 Pokud se v tom nechcete moc hrabat, pak vám bude stačit v následujícím příkaze nahradit hodnotu "mykey" klíčem.
 
 ```  sh
-docker run --name minion -d -e OCRM_APIKEY=mykey hlidacstatu/ocrminion:ocrminion:lin-v2.0
+docker run --name minion -d -e OCRM_APIKEY=mykey hlidacstatu/ocrminion:lin-v2.0
 ```
 
 ### Doporučené spuštění
@@ -51,7 +51,7 @@ Kvůli [síni slávy](https://www.hlidacstatu.cz/api/v1/ocrstat) budeme rádi, k
 V náledujícím příkaze nahraďte "mykey" klíčem, který od nás obdržíte. Hodnotu "muj@email.cz" nahraďte svým emailem.
 
 ```  sh
-docker run --name minion -d -e OCRM_APIKEY=mykey -e OCRM_EMAIL=muj@mail.cz hlidacstatu/ocrminion:ocrminion:lin-v2.0
+docker run --name minion -d -e OCRM_APIKEY=mykey -e OCRM_EMAIL=muj@mail.cz hlidacstatu/ocrminion:lin-v2.0
 ```
 
 ## Environment variables
