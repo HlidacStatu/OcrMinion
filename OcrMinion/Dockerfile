@@ -1,7 +1,7 @@
-FROM mcr.microsoft.com/dotnet/core/runtime:3.0.0-alpine3.9 AS base
+FROM mcr.microsoft.com/dotnet/runtime:5.0.1-alpine3.12 AS base
 WORKDIR /app
 
-FROM mcr.microsoft.com/dotnet/core/sdk:3.0-buster AS build
+FROM mcr.microsoft.com/dotnet/sdk:5.0-buster-slim AS build
 WORKDIR /src
 COPY ["OcrMinion/OcrMinion.csproj", "OcrMinion/"]
 RUN dotnet restore "OcrMinion/OcrMinion.csproj"
