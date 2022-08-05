@@ -7,7 +7,7 @@ Klient pro dolování textů z obrázkových dokumentů (OCR) pro Hlídač stát
 
 05\. 08. 2022 - Po delší odmlce máme pro vás novou verzi. Nová verze Tesseractu. Upgrade na .NET 6. **Menší velikost a podpora pro ARM64** Aktualizujte si prosím své kontejnery na `ocrminion:v2.2`.
 
-18\. 12. 2020 - Další nová verze je tu. Hlavní změnou je použití nové verze Tesseractu. Také jsme upgradovali z .Net core 3.1 na .NET 5. Aktualizujte si prosím své kontejnery na `ocrminion:lin-v2.1`.
+18\. 12. 2020 - Další nová verze je tu. Hlavní změnou je použití nové verze Tesseractu. Také jsme upgradovali z .Net core 3.1 na .NET 5. Aktualizujte si prosím své kontejnery na ~~`ocrminion:lin-v2.1`~~.
 
 2\. 12. 2019 - Spustili jsme novou verzi klienta. Aktuální verze je ~~`ocrminion:lin-v2.0`~~. Aktualizujte si prosím své kontejnery.
 
