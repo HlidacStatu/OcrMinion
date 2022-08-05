@@ -5,6 +5,8 @@ Klient pro dolování textů z obrázkových dokumentů (OCR) pro Hlídač stát
 
 ## Aktuality
 
+05\. 08. 2022 - Po delší odmlce máme pro vás novou verzi. Nová verze Tesseractu. Upgrade na .NET 6. **Menší velikost a podpora pro ARM64** Aktualizujte si prosím své kontejnery na `ocrminion:v2.2`.
+
 18\. 12. 2020 - Další nová verze je tu. Hlavní změnou je použití nové verze Tesseractu. Také jsme upgradovali z .Net core 3.1 na .NET 5. Aktualizujte si prosím své kontejnery na `ocrminion:lin-v2.1`.
 
 2\. 12. 2019 - Spustili jsme novou verzi klienta. Aktuální verze je ~~`ocrminion:lin-v2.0`~~. Aktualizujte si prosím své kontejnery.
@@ -15,13 +17,13 @@ Aktualizaci provedete spuštěním následujících příkazů:
 ``` shell
 docker stop minion
 docker container rm minion
-docker run --name minion -d -e OCRM_APIKEY=mykey -e OCRM_EMAIL=muj@mail.cz hlidacstatu/ocrminion:lin-v2.1
+docker run --name minion -d -e OCRM_APIKEY=mykey -e OCRM_EMAIL=muj@mail.cz hlidacstatu/ocrminion:v2.2
 ```
 
 Případně pokud chcete detailnější logy použíjte následující příkaz:
 
 ``` shell
-docker run --name minion -d -e OCRM_APIKEY=mykey -e OCRM_EMAIL=muj@mail.cz -e Logging__LogLevel__Default=Information hlidacstatu/ocrminion:lin-v2.1
+docker run --name minion -d -e OCRM_APIKEY=mykey -e OCRM_EMAIL=muj@mail.cz -e Logging__LogLevel__Default=Information hlidacstatu/ocrminion:v2.2
 ```
 
 ## Statistiky, aktuálně běžící klienti
@@ -43,7 +45,7 @@ Přehled aktuálně běžících klientů a žebříček nejpracovitějších je
 Pokud se v tom nechcete moc hrabat, pak vám bude stačit v následujícím příkaze nahradit hodnotu "mykey" klíčem.
 
 ```  sh
-docker run --name minion -d -e OCRM_APIKEY=mykey hlidacstatu/ocrminion:lin-v2.1
+docker run --name minion -d -e OCRM_APIKEY=mykey hlidacstatu/ocrminion:v2.2
 ```
 
 ### Doporučené spuštění
@@ -53,7 +55,7 @@ Kvůli [síni slávy](https://www.hlidacstatu.cz/api/v1/ocrstat) budeme rádi, k
 V náledujícím příkaze nahraďte "mykey" klíčem, který od nás obdržíte. Hodnotu "muj@email.cz" nahraďte svým emailem.
 
 ```  sh
-docker run --name minion -d -e OCRM_APIKEY=mykey -e OCRM_EMAIL=muj@mail.cz hlidacstatu/ocrminion:lin-v2.1
+docker run --name minion -d -e OCRM_APIKEY=mykey -e OCRM_EMAIL=muj@mail.cz hlidacstatu/ocrminion:v2.2
 ```
 
 ## Environment variables
