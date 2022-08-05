@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using RunProcessAsTask;
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -14,7 +15,7 @@ namespace HlidacStatu.OcrMinion
     {
         private readonly ILogger _logger;
         private readonly IClient _hlidacRest;
-        private OCRTask _currentTask;
+        private OCRTask? _currentTask;
 
         public OcrFlow(ILogger<OcrFlow> logger, IClient client)
         {
@@ -51,8 +52,6 @@ namespace HlidacStatu.OcrMinion
                 {
                     // cancellation token called
                 }
-                
-                return;
             }
             catch (TaskCanceledException)
             {
@@ -84,8 +83,6 @@ namespace HlidacStatu.OcrMinion
         /// <summary>
         /// Downloads file and stores it on disk.
         /// </summary>
-        /// <param name="task"></param>
-        /// <returns></returns>
         private async Task GetImageAsync(CancellationToken cancellationToken)
         {
             if (_currentTask != null && !string.IsNullOrWhiteSpace(_currentTask.TaskId))
@@ -127,6 +124,12 @@ namespace HlidacStatu.OcrMinion
             DateTime taskStart = DateTime.Now;
             _logger.LogInformation($"Tesseract started");
 
+            if (_currentTask is null)
+            {
+                _logger.LogWarning($"Task is empty, something else failed");
+                return;
+            }
+
             var processInfo = new ProcessStartInfo(
                 "tesseract",
                 $"{_currentTask.InternalFileName} {_currentTask.InternalFileName} -l ces --psm 1 --dpi 300");
@@ -135,7 +138,7 @@ namespace HlidacStatu.OcrMinion
             var tesseractResult = await tesseractTask;
 
             DateTime taskEnd = DateTime.Now;
-            string taskRunTime = tesseractResult.RunTime.TotalSeconds.ToString();
+            string taskRunTime = tesseractResult.RunTime.TotalSeconds.ToString(CultureInfo.InvariantCulture);
             if (tesseractResult.ExitCode == 0)
             {
                 _logger.LogInformation($"Tesseract successfully finished. It took {taskRunTime} s.");
